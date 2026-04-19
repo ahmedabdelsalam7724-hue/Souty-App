@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Souty Final</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root { --primary: #6C63FF; --danger: #FF4B2B; --bg: #0F0F0F; --card: #1A1A1A; }
+        body { font-family: sans-serif; background: var(--bg); color: white; margin: 0; padding-bottom: 80px; overflow-x: hidden; }
+        
+        #splash-screen { position: fixed; inset: 0; background: #000; z-index: 10000; display: flex; align-items: center; justify-content: center; transition: opacity 0.5s; }
+        #auth-screen { position: fixed; inset: 0; background: var(--bg); z-index: 999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        
+        .auth-input { width: 80%; padding: 12px; margin: 10px; border-radius: 10px; border: 1px solid #333; background: #111; color: #fff; }
+        header { background: var(--card); padding: 15px; display: flex; justify-content: space-between; border-bottom: 1px solid #333; position: sticky; top: 0; z-index: 100; }
+        
+        .feed { padding: 15px; }
+        .audio-card { background: var(--card); border-radius: 15px; padding: 15px; margin-bottom: 15px; border: 1px solid #333; }
+        
+        .bottom-nav { position: fixed; bottom: 0; width: 100%; background: var(--card); display: flex; justify-content: space-around; padding: 10px 0; border-top: 1px solid #333; z-index: 100; }
+        .nav-btn { background: none; border: none; color: #777; font-size: 20px; cursor: pointer; }
+        .nav-btn.active { color: var(--primary); }
+        .main-mic { background: var(--primary) !important; color: white !important; width: 55px; height: 55px; border-radius: 50%; margin-top: -30px; box-shadow: 0 4px 15px rgba(108, 99, 255, 0.4); }
+
+        #recordingOverlay { display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; flex-direction: column; align-items: center; justify-content: center; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="splash-screen"><h1>SOUTY</h1></div>
+
+<div id="auth-screen" class="hidden">
+    <h2>تسجيل الدخول</h2>
+    <input type="text" id="nameIn" class="auth-input" placeholder="الاسم">
+    <input type="password" id="passIn" class="auth-input" placeholder="كلمة المرور">
+    <button onclick="login()" style="background:var(--primary); color:white; border:none; padding:10px 40px; border-radius:20px; cursor:pointer;">دخول</button>
+</div>
+
+<header>
+    <i class="fas fa-search" onclick="showTab('feed')"></i>
+    <span style="color:var(--primary); font-weight:bold;">صوتي</span>
+    <i class="fas fa-user" onclick="showTab('profile')"></i>
+</header>
+
+<div id="recordingOverlay">
+    <h1 id="timer">00:00</h1>
+    <button onclick="stopRec()" style="background:var(--danger); color:white; border:none; padding:15px 40px; border-radius:30px; cursor:pointer;">إيقاف ونشر</button>
+</div>
+
+<div id="feed-tab" class="tab-content feed">
+    <div id="postList"></div>
+</div>
+
+<div id="profile-tab" class="tab-content feed hidden">
+    <div style="text-align:center;">
+        <h3 id="myName"></h3>
+        <p>مرحباً بك في ملفك الشخصي</p>
+    </div>
+</div>
+
+<div class="bottom-nav">
+    <button onclick="showTab('feed')" class="nav-btn"><i class="fas fa-home"></i></button>
+    <button onclick="alert('قريباً')" class="nav-btn"><i class="fas fa-broadcast-tower"></i></button>
+    <button onclick="startRec()" class="nav-btn main-mic"><i class="fas fa-microphone"></i></button>
+    <button onclick="alert('جارٍ البحث...')" class="nav-btn"><i class="fas fa-random"></i></button>
+    <button onclick="showTab('profile')" class="nav-btn"><i class="fas fa-user"></i></button>
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+<script>
+    let mediaRecorder;
+    let audioChunks = [];
+    let socket;
+
+    // محاولة الاتصال بالسوكت
+    try {
+        socket = io();
+        socket.on('newPost', (post) => addPostToUI(post, true));
+    } catch(e) { console.log("Socket.io not connected"); }
+
+    // التحكم في الشاشات - إخفاء الـ Splash Screen إجبارياً بعد 3 ثواني
+    window.addEventListener('load', () => {
+        setTimeout(() => {
+            const splash = document.getElementById('splash-screen');
+            splash.style.opacity = '0';
+            setTimeout(() => splash.classList.add('hidden'), 500);
+
+            if (!localStorage.getItem('userName')) {
+                document.getElementById('auth-screen').classList.remove('hidden');
+            } else {
+                document.getElementById('myName').innerText = localStorage.getItem('userName');
+                loadPosts();
+            }
+        }, 3000);
+    });
+
+    function login() {
+        const name = document.getElementById('nameIn').value;
+        if (name) {
+            localStorage.setItem('userName', name);
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('myName').innerText = name;
+            loadPosts();
+        }
+    }
+
+    function showTab(tabName) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+        document.getElementById(tabName + '-tab').classList.remove('hidden');
+    }
+
+    async function loadPosts() {
+        try {
+            const res = await fetch('/api/posts');
+            const posts = await res.json();
+            const list = document.getElementById('postList');
+            list.innerHTML = '';
+            posts.forEach(post => addPostToUI(post));
+        } catch (err) { console.error("Error loading posts"); }
+    }
+
+    function addPostToUI(post, isNew = false) {
+        const list = document.getElementById('postList');
+        const html = `
+            <div class="audio-card">
+                <b style="color:#6C63FF;">${post.userName}</b>
+                <audio controls src="${post.audioUrl}" style="width:100%; margin-top:10px;"></audio>
+            </div>`;
+        if (isNew) list.insertAdjacentHTML('afterbegin', html);
+        else list.innerHTML += html;
+    }
+
+    async function startRec() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                uploadAudio(audioBlob);
+            };
+            mediaRecorder.start();
+            document.getElementById('recordingOverlay').style.display = 'flex';
+        } catch (err) { alert("الميكروفون مطلوب!"); }
+    }
+
+    function stopRec() {
+        mediaRecorder.stop();
+        document.getElementById('recordingOverlay').style.display = 'none';
+    }
+
+    async function uploadAudio(blob) {
+        const formData = new FormData();
+        formData.append('audio', blob);
+        formData.append('userName', localStorage.getItem('userName'));
+        await fetch('/api/upload', { method: 'POST', body: formData });
+    }
+</script>
+</body>
+</html>
