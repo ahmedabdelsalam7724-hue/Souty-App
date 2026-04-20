@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Souty Pro - صـوتي</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root { --primary: #6C63FF; --bg: #0F0F0F; --card: #1A1A1A; --text: #ffffff; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow-x: hidden; padding-bottom: 70px; }
+        
+        /* الأنظمة الأساسية */
+        .screen { display: none; min-height: 100vh; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; }
+        .screen.active { display: flex; animation: fadeIn 0.4s ease-out; }
+        .hidden { display: none !important; }
+
+        /* شاشات التسجيل والدخول */
+        .auth-container { width: 90%; max-width: 400px; background: var(--card); padding: 30px; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.7); border: 1px solid #222; }
+        h2 { text-align: center; color: var(--primary); margin-bottom: 25px; font-weight: 600; }
+        .input-group { margin-bottom: 20px; width: 100%; }
+        label { display: block; margin-bottom: 8px; font-size: 14px; color: #888; }
+        input, select, textarea { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid #333; background: #0a0a0a; color: white; font-size: 16px; transition: 0.3s; box-sizing: border-box; }
+        .btn { width: 100%; padding: 14px; border-radius: 12px; border: none; cursor: pointer; font-weight: bold; margin-top: 10px; font-size: 16px; transition: 0.3s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-outline { background: transparent; border: 1px solid #444; color: #bbb; margin-top: 15px; }
+
+        /* الشاشة الرئيسية - الهيدر */
+        .app-header { width: 100%; padding: 10px 15px; background: var(--card); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #222; box-sizing: border-box; }
+        .header-icons i { font-size: 20px; color: #bbb; margin: 0 10px; cursor: pointer; }
+        .app-logo { font-size: 22px; font-weight: bold; color: var(--primary); }
+        .nav-profile-img { width: 35px; height: 35px; border-radius: 50%; border: 1px solid var(--primary); cursor: pointer; }
+
+        /* إضافة منشور */
+        .add-post-section { width: 100%; background: var(--card); padding: 15px; margin-top: 5px; box-sizing: border-box; }
+        .add-post-trigger { display: flex; align-items: center; gap: 10px; background: #0a0a0a; padding: 10px; border-radius: 25px; border: 1px solid #333; cursor: pointer; }
+        .fake-input { color: #888; flex: 1; font-size: 14px; text-align: right; }
+        .user-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+
+        /* الخلاصة (Feed) */
+        #main-app { justify-content: flex-start; }
+        .feed-scroll { width: 100%; padding: 10px; box-sizing: border-box; }
+        .post-card { background: var(--card); border-radius: 15px; padding: 15px; margin-bottom: 15px; border-bottom: 1px solid #333; }
+        .post-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+        .post-info { display: flex; flex-direction: column; }
+        .post-user { font-weight: bold; font-size: 15px; }
+        .post-time { font-size: 11px; color: #666; }
+        .post-actions { display: flex; justify-content: space-between; margin-top: 15px; border-top: 1px solid #222; padding-top: 10px; }
+        .post-actions button { background: none; border: none; color: #bbb; display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 14px; }
+
+        /* الشريط السفلي */
+        .bottom-nav { position: fixed; bottom: 0; width: 100%; background: var(--card); display: flex; justify-content: space-around; padding: 10px 0; border-top: 1px solid #222; z-index: 100; }
+        .nav-item { background: none; border: none; color: #888; display: flex; flex-direction: column; align-items: center; font-size: 11px; gap: 4px; cursor: pointer; }
+        .nav-item i { font-size: 18px; }
+
+        /* المودال */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 2000; display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: var(--card); width: 90%; max-width: 500px; padding: 20px; border-radius: 20px; position: relative; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .upload-options { display: flex; gap: 8px; margin-top: 15px; }
+        .upload-options button { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid #333; background: #0a0a0a; color: white; font-size: 12px; cursor: pointer; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    </style>
+</head>
+<body>
+
+<div id="login-screen" class="screen active">
+    <div class="auth-container">
+        <h2>تسجيل الدخول</h2>
+        <div class="input-group">
+            <input type="email" id="login-email" placeholder="البريد الإلكتروني">
+        </div>
+        <div class="input-group">
+            <input type="password" id="login-pass" placeholder="كلمة المرور">
+        </div>
+        <button class="btn btn-primary" onclick="handleLogin()">دخول</button>
+        <button class="btn btn-outline" onclick="showScreen('reg-step-1')">إنشاء حساب جديد</button>
+    </div>
+</div>
+
+<div id="reg-step-1" class="screen">
+    <div class="auth-container">
+        <h2>خطوة 1/4</h2>
+        <div class="input-group">
+            <label>الدولة</label>
+            <select id="reg-country" onchange="updateCountryCode()">
+                <option value="">اختر الدولة</option>
+                <option value="+20">مصر (+20)</option>
+                <option value="+966">السعودية (+966)</option>
+                <option value="+971">الإمارات (+971)</option>
+                <option value="+965">الكويت (+965)</option>
+                <option value="+212">المغرب (+212)</option>
+                <option value="+213">الجزائر (+213)</option>
+                <option value="+1">أمريكا/كندا (+1)</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label>رقم الهاتف</label>
+            <input type="tel" id="reg-phone" placeholder="رقم الهاتف">
+        </div>
+        <button class="btn btn-primary" onclick="validateStep1()">التالي</button>
+    </div>
+</div>
+
+<div id="reg-step-2" class="screen">
+    <div class="auth-container">
+        <h2>خطوة 2/4</h2>
+        <div class="input-group"><input type="text" id="reg-name" placeholder="الاسم الكامل"></div>
+        <div class="input-group"><input type="email" id="reg-email" placeholder="البريد الإلكتروني"></div>
+        <button class="btn btn-primary" onclick="showScreen('reg-step-3')">التالي</button>
+    </div>
+</div>
+
+<div id="reg-step-3" class="screen">
+    <div class="auth-container">
+        <h2>خطوة 3/4</h2>
+        <div class="input-group"><label>تاريخ الميلاد</label><input type="date" id="reg-birth"></div>
+        <div class="input-group"><input type="password" id="reg-pass" placeholder="كلمة المرور (8 رموز + أرقام)"></div>
+        <button class="btn btn-primary" onclick="showScreen('reg-step-4')">التالي</button>
+    </div>
+</div>
+
+<div id="reg-step-4" class="screen">
+    <div class="auth-container">
+        <h2>الخطوة الأخيرة</h2>
+        <div class="input-group"><input type="password" id="reg-pass-confirm" placeholder="تأكيد كلمة المرور"></div>
+        <button class="btn btn-primary" onclick="finalRegister()">إتمام التسجيل والدخول</button>
+    </div>
+</div>
+
+<div id="main-app" class="screen">
+    <header class="app-header">
+        <div class="header-icons">
+            <i class="fas fa-search"></i>
+            <i class="fas fa-layer-group"></i>
+        </div>
+        <div class="app-logo">صـوتي</div>
+        <div class="header-icons">
+            <i class="fas fa-comments"></i>
+            <img src="https://via.placeholder.com/35" class="nav-profile-img" onclick="alert('الملف الشخصي قريباً')">
+        </div>
+    </header>
+
+    <div class="add-post-section">
+        <div class="add-post-trigger" onclick="openModal()">
+            <img src="https://via.placeholder.com/40" class="user-avatar">
+            <div class="fake-input">بماذا تفكر يا <span id="display-name">أحمد</span>؟</div>
+            <i class="fas fa-photo-video" style="color: #45bd62;"></i>
+        </div>
+    </div>
+
+    <div class="feed-scroll">
+        <div class="post-card">
+            <div class="post-header">
+                <img src="https://via.placeholder.com/45" class="user-avatar">
+                <div class="post-info">
+                    <span class="post-user">فريق صـوتي</span>
+                    <span class="post-time">الآن</span>
+                </div>
+            </div>
+            <div class="post-content">مرحباً بك في عالم صـوتي! ابدأ بمشاركة أفكارك الصوتية والمرئية مع أصدقائك.</div>
+            <div class="post-actions">
+                <button><i class="far fa-heart"></i> إعجاب</button>
+                <button><i class="far fa-comment"></i> تعليق</button>
+                <button><i class="fas fa-share"></i> مشاركة</button>
+            </div>
+        </div>
+    </div>
+
+    <nav class="bottom-nav">
+        <button class="nav-item"><i class="fas fa-film"></i><span>الريلز</span></button>
+        <button class="nav-item"><i class="fas fa-microphone-alt"></i><span>الغرف</span></button>
+        <button class="nav-item"><i class="fas fa-bell"></i><span>الإشعارات</span></button>
+    </nav>
+</div>
+
+<div id="postModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>إنشاء منشور</h3>
+            <i class="fas fa-times" onclick="closeModal()" style="cursor:pointer"></i>
+        </div>
+        <textarea placeholder="اكتب مقالاً أو وصفاً..."></textarea>
+        <div class="upload-options">
+            <button><i class="fas fa-microphone"></i> صوت</button>
+            <button><i class="fas fa-video"></i> فيديو</button>
+            <button><i class="fas fa-image"></i> صورة</button>
+        </div>
+        <button class="btn btn-primary" style="margin-top:20px" onclick="closeModal()">نشر</button>
+    </div>
+</div>
+
+<script>
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        window.scrollTo(0,0);
+    }
+
+    function updateCountryCode() {
+        const code = document.getElementById('reg-country').value;
+        const phoneInput = document.getElementById('reg-phone');
+        if(code) phoneInput.value = code + " ";
+    }
+
+    function validateStep1() {
+        const phone = document.getElementById('reg-phone').value.trim();
+        if(phone.length < 10) { alert("أدخل رقم هاتف صحيح"); return; }
+        showScreen('reg-step-2');
+    }
+
+    function handleLogin() {
+        const email = document.getElementById('login-email').value;
+        if(email) showScreen('main-app');
+        else alert("أدخل بياناتك");
+    }
+
+    function finalRegister() {
+        const name = document.getElementById('reg-name').value;
+        document.getElementById('display-name').innerText = name || "أحمد";
+        showScreen('main-app');
+    }
+
+    function openModal() { document.getElementById('postModal').classList.remove('hidden'); }
+    function closeModal() { document.getElementById('postModal').classList.add('hidden'); }
+</script>
+
+</body>
+</html>
